@@ -9,7 +9,8 @@ use crate::{
 pub struct LibreLinkClient {
     client: Client,
     token: String,
-    base_url: String,
+    base_url: Option<String>,
+    region: Option<String>,
 }
 
 pub struct Credentials {
@@ -18,29 +19,50 @@ pub struct Credentials {
 }
 
 impl LibreLinkClient {
-    pub async fn new(credentials: Credentials) -> Result<Self, Box<dyn std::error::Error>> {
+    pub async fn new(credentials: Credentials, region: Option<String>) -> Result<Self, Box<dyn std::error::Error>> {
         let token = try_get_access_token(&credentials.username, &credentials.password).await;
 
         match token {
-            Ok(token) => Ok(LibreLinkClient {
-                client: Client::new(),
-                token,
-                base_url: "https://api.libreview.io".to_string(),
-            }),
+            Ok(token) => {
+                let mut client = LibreLinkClient {
+                    client: Client::new(),
+                    token,
+                    region,
+                    base_url: None
+                };
+                client.set_base_url();
+                Ok(client)
+            }
             Err(e) => Err(e),
         }
     }
 
-    pub fn from_token(token: String) -> Self {
-        LibreLinkClient {
+    pub fn from_token(token: String, region: Option<String>) -> Self {
+        let mut client = LibreLinkClient {
             client: Client::new(),
             token,
-            base_url: "https://api.libreview.io".to_string(),
+            region,
+            base_url: None
+        };
+        client.set_base_url();
+        client
+    }
+
+
+    fn set_base_url(&mut self) {
+        // if region is None then set https://api.libreview.io else set https://api-{region}.libreview.io
+        if let Some(region) = &self.region {
+            let url = format!("https://api-{}.libreview.io", region);
+            self.base_url = Some(url);
+        } else {
+            let url = "https://api.libreview.io".to_string();
+            self.base_url = Some(url);
         }
     }
 
     pub async fn get_connections(&self) -> Result<ResponseConnections, Box<dyn std::error::Error>> {
-        let url = format!("{}/{}", &self.base_url, "llu/connections");
+        let base_url = self.base_url.clone().unwrap();
+        let url = format!("{}/{}", &base_url, "llu/connections");
 
         let response = self
             .client
@@ -64,9 +86,10 @@ impl LibreLinkClient {
         &self,
         connection_id: &str,
     ) -> Result<ConnectionGraphResponse, Box<dyn std::error::Error>> {
+        let base_url = self.base_url.clone().unwrap();
         let url = format!(
             "{}/{}/{}/{}",
-            &self.base_url, "llu/connections", connection_id, "graph"
+            &base_url, "llu/connections", connection_id, "graph"
         );
 
         let response = self
@@ -92,9 +115,10 @@ impl LibreLinkClient {
         num_periods: i32,
         period: i32,
     ) -> Result<GlucoseHistoryRequest, Box<dyn std::error::Error>> {
+        let base_url = self.base_url.clone().unwrap();
         let url = format!(
             "{}/{}?numPeriods={}&period={}",
-            &self.base_url, "glucoseHistory", num_periods, period
+            &base_url, "glucoseHistory", num_periods, period
         );
 
         let response = self
@@ -117,9 +141,10 @@ impl LibreLinkClient {
         &self,
         connection_id: &str,
     ) -> Result<LogBookRequest, Box<dyn std::error::Error>> {
+        let base_url = self.base_url.clone().unwrap();
         let url = format!(
             "{}/{}/{}/{}",
-            &self.base_url, "llu/connections", connection_id, "logbook"
+            &base_url, "llu/connections", connection_id, "logbook"
         );
 
         let response = self
