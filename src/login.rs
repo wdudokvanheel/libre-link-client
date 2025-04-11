@@ -3,13 +3,19 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ResponseLoginRequest {
     pub status: i32,
-    pub data: Data,
+    pub data: LoginData,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Data {
+pub struct LoginData {
     #[serde(rename = "authTicket")]
     pub auth_ticket: AuthTicket,
+    pub user: DataUser,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct DataUser {
+    pub id: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -30,10 +36,10 @@ pub struct Error {
     pub message: String,
 }
 
-pub async fn try_get_access_token(
+pub async fn try_get_access_data(
     username: &str,
     password: &str,
-) -> Result<String, Box<dyn std::error::Error>> {
+) -> Result<LoginData, Box<dyn std::error::Error>> {
     let url = "https://api.libreview.io/llu/auth/login";
 
     let login_request = serde_json::json!({
@@ -56,7 +62,7 @@ pub async fn try_get_access_token(
     let api_response: Result<ResponseLoginRequest, serde_json::Error> = serde_json::from_str(&text);
 
     match api_response {
-        Ok(response_data) => Ok(response_data.data.auth_ticket.token),
+        Ok(response_data) => Ok(response_data.data),
         Err(_) => {
             let error_response: ErrorResponse = serde_json::from_str(&text).unwrap();
             if error_response.status == 2 {

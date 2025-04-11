@@ -28,6 +28,8 @@ pub struct Connection {
     pub target_low: i32,
     #[serde(rename = "targetHigh")]
     pub target_high: i32,
+    #[serde(rename = "glucoseMeasurement")]
+    pub glucose_measurement: GraphData
 }
 
 #[derive(Serialize, Deserialize, Debug)]

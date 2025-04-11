@@ -1,14 +1,16 @@
-use reqwest::Client;
-
+use crate::login::DataUser;
 use crate::{
     connection::{ConnectionGraphResponse, ResponseConnections},
     glucose::{GlucoseHistoryRequest, LogBookRequest},
-    login::try_get_access_token,
+    login::try_get_access_data,
 };
+use reqwest::Client;
+use sha2::{Digest, Sha256};
 
 pub struct LibreLinkClient {
     client: Client,
     token: String,
+    user_data: DataUser,
     base_url: Option<String>,
     region: Option<String>,
 }
@@ -19,16 +21,20 @@ pub struct Credentials {
 }
 
 impl LibreLinkClient {
-    pub async fn new(credentials: Credentials, region: Option<String>) -> Result<Self, Box<dyn std::error::Error>> {
-        let token = try_get_access_token(&credentials.username, &credentials.password).await;
+    pub async fn new(
+        credentials: Credentials,
+        region: Option<String>,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let data = try_get_access_data(&credentials.username, &credentials.password).await;
 
-        match token {
-            Ok(token) => {
+        match data {
+            Ok(data) => {
                 let mut client = LibreLinkClient {
                     client: Client::new(),
-                    token,
+                    user_data: data.user,
+                    token: data.auth_ticket.token,
                     region,
-                    base_url: None
+                    base_url: None,
                 };
                 client.set_base_url();
                 Ok(client)
@@ -37,17 +43,17 @@ impl LibreLinkClient {
         }
     }
 
-    pub fn from_token(token: String, region: Option<String>) -> Self {
+    pub fn from_token(token: String, user_id: String, region: Option<String>) -> Self {
         let mut client = LibreLinkClient {
             client: Client::new(),
             token,
             region,
-            base_url: None
+            user_data: DataUser { id: user_id },
+            base_url: None,
         };
         client.set_base_url();
         client
     }
-
 
     fn set_base_url(&mut self) {
         // if region is None then set https://api.libreview.io else set https://api-{region}.libreview.io
@@ -60,6 +66,12 @@ impl LibreLinkClient {
         }
     }
 
+    fn get_encoded_account_id(&self) -> String {
+        let mut hasher = Sha256::new();
+        hasher.update(self.user_data.id.as_bytes());
+        hex::encode(hasher.finalize())
+    }
+
     pub async fn get_connections(&self) -> Result<ResponseConnections, Box<dyn std::error::Error>> {
         let base_url = self.base_url.clone().unwrap();
         let url = format!("{}/{}", &base_url, "llu/connections");
@@ -67,9 +79,11 @@ impl LibreLinkClient {
         let response = self
             .client
             .get(url)
-            .header("version", "4.7.1")
-            .header("product", "llu.android")
-            .header("User-Agent", "Apidog/1.0.0 (https://apidog.com)")
+            .header("User-Agent", "Mozilla/5.0 (iPhone; CPU OS 17_4.1 like Mac OS X) AppleWebKit/536.26 (KHTML, like Gecko) Version/17.4.1 Mobile/10A5355d Safari/8536.25")
+            .header("version", "4.12.0")
+            .header("product", "llu.ios")
+            .header("Content-Type", "application/json;charset=UTF-8")
+            .header("account-id", self.get_encoded_account_id())
             .bearer_auth(&self.token)
             .send()
             .await?;
@@ -95,9 +109,11 @@ impl LibreLinkClient {
         let response = self
             .client
             .get(url)
-            .header("version", "4.7.1")
-            .header("product", "llu.android")
-            .header("User-Agent", "Apidog/1.0.0 (https://apidog.com)")
+            .header("User-Agent", "Mozilla/5.0 (iPhone; CPU OS 17_4.1 like Mac OS X) AppleWebKit/536.26 (KHTML, like Gecko) Version/17.4.1 Mobile/10A5355d Safari/8536.25")
+            .header("version", "4.12.0")
+            .header("product", "llu.ios")
+            .header("Content-Type", "application/json;charset=UTF-8")
+            .header("account-id", self.get_encoded_account_id())
             .bearer_auth(&self.token)
             .send()
             .await?;
@@ -124,7 +140,11 @@ impl LibreLinkClient {
         let response = self
             .client
             .get(url)
-            .header("User-Agent", "Apidog/1.0.0 (https://apidog.com)")
+            .header("User-Agent", "Mozilla/5.0 (iPhone; CPU OS 17_4.1 like Mac OS X) AppleWebKit/536.26 (KHTML, like Gecko) Version/17.4.1 Mobile/10A5355d Safari/8536.25")
+            .header("version", "4.12.0")
+            .header("product", "llu.ios")
+            .header("Content-Type", "application/json;charset=UTF-8")
+            .header("account-id", self.get_encoded_account_id())
             .bearer_auth(&self.token)
             .send()
             .await?;
