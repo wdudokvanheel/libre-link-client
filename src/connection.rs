@@ -95,7 +95,7 @@ pub struct GraphData {
     #[serde(rename = "GlucoseUnits")]
     pub glucose_units: i32,
     #[serde(rename = "Value")]
-    pub value: i32,
+    pub value: f32,
     #[serde(rename = "isHigh")]
     pub is_high: bool,
     #[serde(rename = "isLow")]
