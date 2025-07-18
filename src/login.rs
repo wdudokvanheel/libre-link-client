@@ -28,7 +28,7 @@ pub struct AuthTicket {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ErrorResponse {
     pub status: i32,
-    pub error: Error,
+    pub error: Option<Error>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -59,16 +59,35 @@ pub async fn try_get_access_data(
         .await?;
 
     let text = response.text().await?;
+
+    if(text.is_empty() || text.eq_ignore_ascii_case("{}")){
+        return Err(Box::new(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "No response from Libre Link",
+        )))
+    }
     let api_response: Result<ResponseLoginRequest, serde_json::Error> = serde_json::from_str(&text);
 
     match api_response {
         Ok(response_data) => Ok(response_data.data),
         Err(_) => {
             let error_response: ErrorResponse = serde_json::from_str(&text).unwrap();
-            if error_response.status == 2 {
+
+            let message: String = error_response
+                .error
+                .as_ref()
+                .map(|e| e.message.clone())
+                .unwrap_or_else(|| "Unknown error".to_string());
+
+            if error_response.status == 4 {
                 Err(Box::new(std::io::Error::new(
                     std::io::ErrorKind::Other,
-                    error_response.error.message,
+                    "Privacy policy acceptance required, first login using the Libre Linkup app",
+                )))
+            } else if error_response.status == 2 {
+                Err(Box::new(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    message,
                 )))
             } else {
                 Err(Box::new(std::io::Error::new(
